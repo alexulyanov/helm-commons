@@ -1,0 +1,110 @@
+# Default values for helm-admin2-commons.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+name: "defaultName"
+
+servicemonitor:
+  enabled: "false"  # Change to "false" to disable monitoring
+  endpoint: "false" # Change this to "dedicated" if app has dedicated metrics endpoint
+  portName: http    # if endpoint: "false" >"http" / if endpoint: "dedicated" >"http-metrics"
+  path: "/metrics"  # Change only if "/metrics" si not the default path
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+image:
+  repository: ""
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+fullnameOverride: ""
+
+# env should be used for setting application specific environment variables.
+env: []
+  # Example:
+  # - name: JAVA_TOOL_OPTIONS
+  #   value: >
+  #     -Dweb.server.port=8800
+  #     -XX:+UnlockExperimentalVMOptions
+  #     -XX:+UseCGroupMemoryLimitForHeap
+
+# extraEnv should be used for setting environment specific and other env. variables.
+# Duing the deployment process this can be overriden with CLI arguments.
+extraEnv: []
+
+# Allows for extra configuration files to be manually declared
+extraConfigYaml: []
+
+extraConfigBinary: []
+
+secrets:
+  file: "env_vars_dev"
+
+service:
+  type: ClusterIP
+  externalPort: 8080
+  internalPort: 8080
+  metrics_externalPort: 8080
+  metrics_internalPort: 8080
+
+livenessProbe: {}
+
+readinessProbe: {}
+
+startupProbe: {}
+
+ingress:
+  enabled: false
+  annotations:
+    {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths: []
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources:
+  {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+podAnnotations:
+  {}
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+# defaults to true, makes it so pods are scheduled equally across different nodes if possible
+NodeAffinity: true
+
+initContainers: {}

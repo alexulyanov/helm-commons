@@ -1,0 +1,138 @@
+{{- define "common.statefulset" -}}
+{{- $common := dict "Values" .Values.common -}} 
+{{- $noCommon := omit .Values "common" -}} 
+{{- $overrides := dict "Values" $noCommon -}} 
+{{- $noValues := omit . "Values" -}} 
+{{- with merge $noValues $overrides $common -}}
+apiVersion: apps/v1
+kind: StatefulSet
+{{ template "common.metadata" . }}
+spec:
+  serviceName: {{ include "common.fullname" . }}
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels: 
+      app: {{ include "common.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "common.fullname" . }}
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configuration.yaml") . | sha256sum }}
+      {{- if .Values.podAnnotations }}
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
+    spec:
+    {{- with .Values.hostsOverride  }}
+      hostAliases: 
+        {{- toYaml .hosts | nindent 8}}
+    {{- end }}
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if or .Values.initContainers .Values.image.sysctls }}
+      initContainers:
+      {{- with .Values.initContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.image.sysctls }}
+        - name: {{.Values.name }}-sysctls-init
+          image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+          command:
+          - sh
+          - -c
+          - | 
+            {{- range $key, $value := .Values.image.sysctls }}
+            sysctl -w {{ $key }}={{ $value }}
+            {{- end }}
+          securityContext:
+            privileged: true
+      {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.internalPort }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- $ResourceCheck := .Files.Glob "config/resources.yaml" -}}
+          {{- if $ResourceCheck }}
+          {{- .Files.Get "config/resources.yaml" | nindent 12 -}}
+          {{- else }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if .Values.env }}
+            {{- toYaml .Values.env | nindent 12 }}
+            {{- end }}
+            {{- if .Values.extraEnv -}}
+            {{- toYaml .Values.extraEnv | nindent 12 }}
+            {{- end }}
+            {{- range .Files.Lines .Values.secrets.file }}
+            {{- $line := split "=" . }}
+            - name: {{ $line._0 }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-env-secret
+                  key: {{ $line._0 }}
+            {{- end }}
+            {{- if .Values.secrets.certs }}
+            - name: CERTS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-env-secret
+                  key: certs.json
+            {{- end }}  
+            {{- .Files.Get "config/envs.yaml" | nindent 10 -}}       
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+      volumes:
+      - name: conf
+        configMap:
+          name: {{ .Release.Name }}-configmap           
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or (.Values.affinity) (.Values.NodeAffinity) }}
+      affinity:
+        {{- with .Values.affinity -}}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.NodeAffinity }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ include "common.fullname" . }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end -}}
+      {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- end -}}
+{{- end -}}

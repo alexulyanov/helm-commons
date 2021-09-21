@@ -1,0 +1,33 @@
+{{- define "common.configuration" -}}
+{{- $common := dict "Values" .Values.common -}} 
+{{- $noCommon := omit .Values "common" -}} 
+{{- $overrides := dict "Values" $noCommon -}} 
+{{- $noValues := omit . "Values" -}} 
+{{- with merge $noValues $overrides $common -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-configmap
+data:
+{{- $root := . -}}
+{{- $confPath := printf "config/*" -}}
+{{- range $path, $bytes := .Files.Glob $confPath -}}
+{{- base $path | nindent 2 -}}: |-
+{{- $root.Files.Get $path | nindent 4 }}
+{{- end -}}
+{{- with .Values.extraConfigYaml -}}
+  {{ . |  nindent 2 }}
+{{ end }}
+
+binaryData:
+{{- with .Files.Glob "keystore/*" }}
+{{- range $path, $bytes := . }}
+  {{ base $path }}: {{ $.Files.Get $path | b64enc | quote }}
+{{- end -}}
+{{- end -}}
+{{- with .Values.extraConfigBinary -}}
+  {{ . | nindent 2 }}
+{{- end -}}
+
+{{- end -}}
+{{- end -}}

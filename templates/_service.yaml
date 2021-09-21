@@ -1,0 +1,26 @@
+{{- define "common.service" -}}
+{{- $common := dict "Values" .Values.common -}} 
+{{- $noCommon := omit .Values "common" -}} 
+{{- $overrides := dict "Values" $noCommon -}} 
+{{- $noValues := omit . "Values" -}} 
+{{- with merge $noValues $overrides $common -}}
+apiVersion: v1
+kind: Service
+{{ template "common.metadata" . }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ include "common.fullname" . }}
+  ports:
+  - name: {{ .Values.service.portName | default "http" }}
+    port: {{ .Values.service.externalPort }}
+    targetPort: {{ default 80 .Values.service.internalPort }}
+    protocol: {{ .Values.service.protocol | default "TCP" }}
+  {{- if eq .Values.servicemonitor.endpoint "dedicated" }}
+  - name: {{ .Values.service.metrics_portName | default "http-metrics" }}
+    port: {{ .Values.service.metrics_externalPort }}
+    targetPort: {{ default 8080 .Values.service.metrics_internalPort }}
+    protocol: {{ .Values.service.protocol | default "TCP" }}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
